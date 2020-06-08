@@ -16,8 +16,10 @@ Basic scavenger hunt where you are asked to take several photos around your home
               <button class="take-photo">Take Photo</button>
           </article>
           <canvas id="image-canvas" style="display: none"></canvas>
-          <figure class="output">
-              <img id="output-area" alt="Still photo" />
+          <template id="photo-output-template">
+              <img class="photo-view" alt="Photo of interesting item" />
+          </template>
+          <figure id="photo-output-area">
           </figure>
       </main>
     #+end_src
@@ -33,38 +35,33 @@ Basic scavenger hunt where you are asked to take several photos around your home
       const preventDefault = fn => ev => { ev.preventDefault(); fn(ev)}
 
       const startup = () => {
-          const [video, canvas, photo, takePhotoBtn] = [`#current-image-stream`, `#image-canvas`, `#output-area`, `.take-photo`]
+          const [video, canvas, photoTemplate, photoArea, takePhotoBtn] = [`#current-image-stream`, `#image-canvas`, `#photo-output-template`, `#photo-output-area`, `.take-photo`]
                 .map(s => document.querySelector(s))
 
           const dimensions = {width: 320, height: null } // height resolved later
 
-          const setPhotoFromCanvas = () => photo.setAttribute(`src`, canvas.toDataURL(`image/png`))
+          const createPhotoElement = (src) => {
+            const photo = photoTemplate.content.cloneNode(true).querySelector(`img`)
+            photo.setAttribute(`src`, src)
+            photoArea.appendChild(photo)
+          }
 
           const takePicture = () => {
               const ctx = canvas.getContext(`2d`)
               if(!dimensions.width || !dimensions.height)
-                  return clearPhoto()
+                  return
               Object.assign(canvas, dimensions)
               ctx.drawImage(video, 0, 0, dimensions.width, dimensions.height)
-              setPhotoFromCanvas()
-          }
-
-          const clearPhoto = () => {
-              const ctx = canvas.getContext(`2d`)
-              ctx.fillStyle = `#AAA`
-              ctx.fillRect(0, 0, canvas.width, canvas.height)
-              setPhotoFromCanvas()
+              createPhotoElement(canvas.toDataURL(`image/png`))
           }
 
           const initializeVideo = () => {
               dimensions.height = video.videoHeight / (video.videoWidth / dimensions.width)
-              console.log(`dimensions`, dimensions)
               video.setAttribute(`width`, dimensions[`width`])
               canvas.setAttribute(`width`, dimensions[`width`])
               video.setAttribute(`height`, dimensions[`height`])
               canvas.setAttribute(`height`, dimensions[`height`])
               takePhotoBtn.addEventListener(`click`, preventDefault(takePicture), false)
-              clearPhoto()
           }
 
           onCanPlay(video, initializeVideo)
@@ -86,8 +83,8 @@ Basic scavenger hunt where you are asked to take several photos around your home
     <iframe src="./playground/still-photos/index.html" style="min-height: 500px; width: 100%; outline: 1px solid black"/>
     #+end_export
 
-*** Run Playground Server
-    #+begin_src shell :async :dir playground
+*** Run Server
+    #+begin_src shell :async :dir .
       python -m http.server 8080 &:
       open http://localhost:8080
     #+end_src
