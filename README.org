@@ -8,48 +8,88 @@ Basic scavenger hunt where you are asked to take several photos around your home
    
    [[https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Taking_still_photos][MDN on still photos]] 
 
-    #+begin_src web :results none :noweb strip-export :exports code :tangle ./playground/still-photos.html
+    #+begin_src web :eval no :exports code :tangle ./playground/still-photos/index.html
+      <script async type="module" src="index.js"></script>
       <main>
           <article class="photo">
               <video id="current-image-stream">No image stream</video>
               <button class="take-photo">Take Photo</button>
           </article>
-          <canvas id="image-canvas"></canvas>
+          <canvas id="image-canvas" style="display: none"></canvas>
           <figure class="output">
               <img id="output-area" alt="Still photo" />
           </figure>
       </main>
-      <script>
-       {
-           const onCanPlay = (video, fn) => {
-               if(video.readyState >= video.HAVE_FUTURE_DATA)
-                   return fn()
-               video.addEventListener(`canplay`, fn)
+    #+end_src
+    
+    #+name: still-photos-js
+    #+begin_src js :eval no :noweb yes :exports code :tangle ./playground/still-photos/index.js
+      const onCanPlay = (video, fn) => {
+          if(video.readyState >= video.HAVE_FUTURE_DATA)
+              return fn()
+          video.addEventListener(`canplay`, fn)
+      }
 
-           }
-           const dimensions = {width: 320, height: null } // height resolved later
-           const startup = () => {
-               const [video, canvas, photo, takePhotoBtn] = [`#current-image-stream`, `#image-canvas`, `#output-area`, `.take-photo`].map(s => document.querySelector(s))
-               onCanPlay(video, () => {
-                   dimensions.height = video.videoHeight / (video.videoWidth / dimensions.width)
-                   console.log(`dimensions`, dimensions)
-                   video.setAttribute(`width`, dimensions[`width`])
-                   canvas.setAttribute(`width`, dimensions[`width`])
-                   video.setAttribute(`height`, dimensions[`height`])
-                   canvas.setAttribute(`height`, dimensions[`height`])
-               })
-               navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(
-                   (stream) => {
-                       video.srcObject = stream
-                       video.play()
-                   }, (err) => console.error(`An error`, err)
-               )
-           }
-           window.addEventListener(`DOMContentLoaded`, startup)
-       }
-      </script>
+      const preventDefault = fn => ev => { ev.preventDefault(); fn(ev)}
+
+      const startup = () => {
+          const [video, canvas, photo, takePhotoBtn] = [`#current-image-stream`, `#image-canvas`, `#output-area`, `.take-photo`]
+                .map(s => document.querySelector(s))
+
+          const dimensions = {width: 320, height: null } // height resolved later
+
+          const setPhotoFromCanvas = () => photo.setAttribute(`src`, canvas.toDataURL(`image/png`))
+
+          const takePicture = () => {
+              const ctx = canvas.getContext(`2d`)
+              if(!dimensions.width || !dimensions.height)
+                  return clearPhoto()
+              Object.assign(canvas, dimensions)
+              ctx.drawImage(video, 0, 0, dimensions.width, dimensions.height)
+              setPhotoFromCanvas()
+          }
+
+          const clearPhoto = () => {
+              const ctx = canvas.getContext(`2d`)
+              ctx.fillStyle = `#AAA`
+              ctx.fillRect(0, 0, canvas.width, canvas.height)
+              setPhotoFromCanvas()
+          }
+
+          const initializeVideo = () => {
+              dimensions.height = video.videoHeight / (video.videoWidth / dimensions.width)
+              console.log(`dimensions`, dimensions)
+              video.setAttribute(`width`, dimensions[`width`])
+              canvas.setAttribute(`width`, dimensions[`width`])
+              video.setAttribute(`height`, dimensions[`height`])
+              canvas.setAttribute(`height`, dimensions[`height`])
+              takePhotoBtn.addEventListener(`click`, preventDefault(takePicture), false)
+              clearPhoto()
+          }
+
+          onCanPlay(video, initializeVideo)
+
+          navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(
+              (stream) => {
+                  video.srcObject = stream
+                  video.play()
+              }, (err) => console.error(`An error`, err)
+          )
+      }
+
+      if(document.readyState === `loading`)
+          window.addEventListener(`DOMContentLoaded`, startup)
+      else startup()
     #+end_src
     
     #+begin_export html
-    <iframe src="./playground/still-photos.html" style="min-height: 500px; width: 100%; outline: 1px solid black"/>
+    <iframe src="./playground/still-photos/index.html" style="min-height: 500px; width: 100%; outline: 1px solid black"/>
     #+end_export
+
+*** Run Playground Server
+    #+begin_src shell :async :dir playground
+      python -m http.server 8080 &:
+      open http://localhost:8080
+    #+end_src
+
+    #+RESULTS:
