@@ -1,87 +1,137 @@
 #+TITLE: Home Scavenger Hunt
 
 Basic scavenger hunt where you are asked to take several photos around your home and they are later presented to someone to find.
-  
+
 * Playground
- 
-** Taking still photos 
-   
-   [[https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Taking_still_photos][MDN on still photos]] 
+  :PROPERTIES:
+  :header-args: :noweb strip-export
+  :END:
 
-    #+begin_src web :eval no :exports code :tangle ./playground/still-photos/index.html
-      <script async type="module" src="index.js"></script>
-      <main>
-          <article class="photo">
-              <video id="current-image-stream">No image stream</video>
-              <button class="take-photo">Take Photo</button>
-          </article>
-          <canvas id="image-canvas" style="display: none"></canvas>
-          <template id="photo-output-template">
-              <img class="photo-view" alt="Photo of interesting item" />
-          </template>
-          <figure id="photo-output-area">
-          </figure>
-      </main>
-    #+end_src
-    
-    #+name: still-photos-js
-    #+begin_src js :eval no :noweb yes :exports code :tangle ./playground/still-photos/index.js
-      const onCanPlay = (video, fn) => {
-          if(video.readyState >= video.HAVE_FUTURE_DATA)
-              return fn()
-          video.addEventListener(`canplay`, fn)
-      }
+** Taking still photos
 
-      const preventDefault = fn => ev => { ev.preventDefault(); fn(ev)}
+   [[https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Taking_still_photos][MDN on still photos]]
 
-      const startup = () => {
-          const [video, canvas, photoTemplate, photoArea, takePhotoBtn] = [`#current-image-stream`, `#image-canvas`, `#photo-output-template`, `#photo-output-area`, `.take-photo`]
-                .map(s => document.querySelector(s))
+   #+begin_src web :eval no :exports code :tangle ./playground/still-photos/index.html
+     <script async type="module" src="index.js"></script>
+     <main>
+         <article class="photo">
+             <video id="current-image-stream">No image stream</video>
+             <button class="take-photo">Take Photo</button>
+         </article>
+         <canvas id="image-canvas" style="display: none"></canvas>
+         <template id="photo-output-template">
+             <img class="photo-view" alt="Photo of interesting item" />
+         </template>
+         <figure id="photo-output-area">
+         </figure>
+     </main>
+   #+end_src
 
-          const dimensions = {width: 320, height: null } // height resolved later
+   First we need a utility function that will let us know when we [[https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/canplay_event][~can play~]] video. It's not as simple as just using the event as the video might already be in a state where it can play video
 
-          const createPhotoElement = (src) => {
-            const photo = photoTemplate.content.cloneNode(true).querySelector(`img`)
-            photo.setAttribute(`src`, src)
-            photoArea.appendChild(photo)
-          }
 
-          const takePicture = () => {
-              const ctx = canvas.getContext(`2d`)
-              if(!dimensions.width || !dimensions.height)
-                  return
-              Object.assign(canvas, dimensions)
-              ctx.drawImage(video, 0, 0, dimensions.width, dimensions.height)
-              createPhotoElement(canvas.toDataURL(`image/png`))
-          }
+   #+name: onCanPlay
+   #+begin_src js :eval no :noweb strip-export :exports code
+     const onCanPlay = (video, fn) => {
+         if(video.readyState >= video.HAVE_FUTURE_DATA)
+             return fn()
+         video.addEventListener(`canplay`, fn)
+     }
+   #+end_src
 
-          const initializeVideo = () => {
-              dimensions.height = video.videoHeight / (video.videoWidth / dimensions.width)
-              video.setAttribute(`width`, dimensions[`width`])
-              canvas.setAttribute(`width`, dimensions[`width`])
-              video.setAttribute(`height`, dimensions[`height`])
-              canvas.setAttribute(`height`, dimensions[`height`])
-              takePhotoBtn.addEventListener(`click`, preventDefault(takePicture), false)
-          }
+   When the application is ready, we'll select and have the following in scope
 
-          onCanPlay(video, initializeVideo)
+   - ~video~ - video element
+   - ~canvas~ - canvas element
+   - ~photoTemplate~ - template for rendering still images
+   - ~takePhotoBtn~ - button to take a poto
+   - ~dimensions~ - ~{width, height}~ object
 
-          navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(
-              (stream) => {
-                  video.srcObject = stream
-                  video.play()
-              }, (err) => console.error(`An error`, err)
-          )
-      }
 
-      if(document.readyState === `loading`)
-          window.addEventListener(`DOMContentLoaded`, startup)
-      else startup()
-    #+end_src
-    
-    #+begin_export html
-    <iframe src="./playground/still-photos/index.html" style="min-height: 500px; width: 100%; outline: 1px solid black"/>
-    #+end_export
+
+   #+name: createStartupVariables     
+   #+begin_src js :eval no :noweb strip-export :exports code
+     const [video, canvas, photoTemplate, photoArea, takePhotoBtn] = [
+         `#current-image-stream`, `#image-canvas`, `#photo-output-template`,
+         `#photo-output-area`, `.take-photo`,
+     ].map(s => document.querySelector(s))
+
+     const dimensions = {width: 320, height: null } // height resolved later
+     #+end_src
+     
+     First lets actually write the code that given an image source, create a still image and place it on screen. This is just some basic code for using the [[https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template][~template~ element]].
+
+   #+name: createPhotoElement
+   #+begin_src js :eval no :noweb strip-export :exports code
+     const createPhotoElement = (src) => {
+         const photo = photoTemplate.content.cloneNode(true).querySelector(`img`)
+         photo.setAttribute(`src`, src)
+         photoArea.appendChild(photo)
+     }
+   #+end_src
+
+   Next lets create a function to allow displaying still images. For this we draw what is currently in the ~video~ to the ~canvas~ context. We can then use its conversion abilities to create the photo element.
+
+
+   #+name: takePicture
+   #+begin_src js :eval no :noweb strip-export :exports code
+     const takePicture = () => {
+         const ctx = canvas.getContext(`2d`)
+         if(!dimensions.width || !dimensions.height)
+             return
+         Object.assign(canvas, dimensions)
+         ctx.drawImage(video, 0, 0, dimensions.width, dimensions.height)
+         createPhotoElement(canvas.toDataURL(`image/png`))
+     }
+   #+end_src
+
+   Next we'll need to initialize things required for taking photos. We can do that once our video component is ready.
+
+
+   #+name: initializeNecessaryComponentsForVideo
+   #+begin_src js :eval no :noweb strip-export :exports code
+     onCanPlay(video, () => {
+         dimensions.height = video.videoHeight / (video.videoWidth / dimensions.width)
+         video.setAttribute(`width`, dimensions[`width`])
+         canvas.setAttribute(`width`, dimensions[`width`])
+         video.setAttribute(`height`, dimensions[`height`])
+         canvas.setAttribute(`height`, dimensions[`height`])
+         takePhotoBtn.addEventListener(`click`, ev => {ev.preventDefault(); takePicture()}, false)
+     })
+   #+end_src
+
+   Finally lets go ahead and kick video off, this is pretty straighteforward just like on MDN.
+
+   #+name: startVideoCameraStream
+   #+begin_src js :eval no :noweb strip-export :exports code
+     navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(
+         (stream) => {
+             video.srcObject = stream
+             video.play()
+         }, (err) => console.error(`An error`, err)
+     )
+   #+end_src
+
+   #+name: still-photos-js
+   #+begin_src js :eval no :noweb strip-export :exports code :tangle ./playground/still-photos/index.js
+         <<onCanPlay>>
+
+     const startup = () => {
+             <<createStartupVariables>>
+             <<createPhotoElement>>
+             <<takePicture>>
+             <<initializeNecessaryComponentsForVideo>>
+             <<startVideoCameraStream>>
+     }
+
+     if(document.readyState === `loading`)
+         window.addEventListener(`DOMContentLoaded`, startup)
+     else startup()
+   #+end_src
+
+   #+begin_export html
+   <iframe src="./playground/still-photos/index.html" style="min-height: 500px; width: 100%; outline: 1px solid black"/>
+   #+end_export
 
 *** Run Server
     #+begin_src shell :async :dir .
